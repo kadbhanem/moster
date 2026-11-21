@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Excel to Table & Word</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.0.2/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* --- GLOBAL RESET --- */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        padding: 20px;
+        text-align: center;
+        background-color: #f4f4f4;
+      }
+
+      /* --- APP INTERFACE --- */
+      input,
+      button {
+        margin-bottom: 20px;
+        padding: 10px;
+        font-size: 16px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        margin-top: 20px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #007bff;
+        color: white;
+      }
+      tr:nth-child(even) {
+        background-color: #f2f2f2;
+      }
+
+      /* --- HIDDEN PDF GENERATOR OVERLAY --- */
+      #pdfOverlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #ffffff; /* White background for clean capture */
+        z-index: 9999;
+        overflow: hidden; /* Prevent scrollbars appearing in screenshot */
+      }
+
+      /* This container will hold EXACTLY ONE page at a time */
+      #pdfContent {
+        width: 595pt; /* A4 Width */
+        min-height: 842pt; /* A4 Height */
+        margin: 0 auto;
+        background: white;
+        position: relative;
+      }
+
+      /* --- PDF PAGE STYLING --- */
+      .pdf-page {
+        width: 100%;
+        height: 100%;
+        padding: 40pt 50pt;
+        box-sizing: border-box;
+        font-family: "Noto Serif Devanagari", serif;
+        color: #000;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Typography */
+      .w-52 {
+        font-size: 26pt;
+      }
+      .w-40 {
+        font-size: 20pt;
+      }
+      .w-36 {
+        font-size: 18pt;
+      }
+      .w-32 {
+        font-size: 16pt;
+      }
+      .w-30 {
+        font-size: 15pt;
+      }
+
+      .font-bold {
+        font-weight: 700;
+      }
+      .text-center {
+        text-align: center;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .text-left {
+        text-align: left;
+      }
+
+      /* Spacing */
+      .mb-1 {
+        margin-bottom: 5pt;
+      }
+      .mb-2 {
+        margin-bottom: 10pt;
+      }
+      .mb-4 {
+        margin-bottom: 20pt;
+      }
+      .mb-5 {
+        margin-bottom: 30pt;
+      }
+      .mt-2 {
+        margin-top: 10pt;
+      }
+
+      /* Separator */
+      .separator-line {
+        margin: 20pt 0;
+        text-align: center;
+        width: 100%;
+        line-height: 1.2;
+      }
+
+      /* Loading Message */
+      #loadingMsg {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 30px;
+        border-radius: 8px;
+        font-size: 24px;
+        font-weight: bold;
+        z-index: 10000;
+        display: none;
+        text-align: center;
+      }
+      #progressBar {
+        display: block;
+        font-size: 16px;
+        margin-top: 10px;
+        font-weight: normal;
+        color: #ddd;
+      }
+    </style>
+  </head>
+  <body>
+    <a href="/" style="position: fixed; top: 20px; right: 20px; background-color: #1f2937; color: #ffffff; padding: 12px 20px; border-radius: 50px; text-decoration: none; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 9999; display: flex; align-items: center; gap: 8px;">
+    <span>&#8592;</span> Back to Portal
+</a>
+    <div id="app-container">
+      <h1>Excel to World Document Converter</h1>
+      <h4 style="text-align: right">
+        Download Sample Excel file <button id="downloadBtn">Download</button>
+      </h4>
+
+      <input type="file" id="fileInput" accept=".xlsx" />
+      <button id="convertWordButton" disabled>Convert to Word</button>
+      <button id="convertPdfButton" disabled>Convert to PDF</button>
+
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Case Name</th>
+            <th>Party Name</th>
+            <th>Date of Decision</th>
+            <th>Judge</th>
+            <th>Clerk Name</th>
+            <th>Clerk Designation</th>
+            <th>Checked By</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="loadingMsg">
+      Generating PDF...<br />
+      <span id="progressBar">Initializing...</span>
+    </div>
+
+    <div id="pdfOverlay">
+      <div id="pdfContent"></div>
+    </div>
+
+    <script>
+      let jsonData = [];
+
+      // 1. FILE UPLOAD HANDLER
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", function (event) {
+          const file = event.target.files[0];
+          if (!file) {
+            alert("Please select a file!");
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            displayData(jsonData);
+            document.getElementById("convertWordButton").disabled = false;
+            document.getElementById("convertPdfButton").disabled = false;
+          };
+          reader.readAsArrayBuffer(file);
+        });
+
+      // 2. DISPLAY TABLE DATA
+      function displayData(data) {
+        const tableBody = document.querySelector("#dataTable tbody");
+        tableBody.innerHTML = "";
+        for (let i = 1; i < data.length; i++) {
+          let row = document.createElement("tr");
+          data[i].forEach((cell) => {
+            let cellElement = document.createElement("td");
+            cellElement.textContent = cell;
+            row.appendChild(cellElement);
+          });
+          tableBody.appendChild(row);
+        }
+      }
+
+      // 3. DATA PARSER
+      function getRowValues(row) {
+        const caseName = row?.[0] || "Case Name";
+        const partyRaw = row?.[1] || "";
+        let petitioner = "Petitioner";
+        let respondent = "Respondent";
+
+        if (partyRaw) {
+          const parts = partyRaw.split(/\s+Vs\s+/i);
+          if (parts.length >= 2) {
+            petitioner = parts[0].trim() || petitioner;
+            respondent = parts.slice(1).join(" Vs ").trim() || respondent;
+          } else {
+            petitioner = partyRaw.trim();
+          }
+        }
+
+        const decisionDate = row?.[2] || "01-01-2025";
+        const judgename = row?.[3] || "";
+        const clerk_name = row?.[4] || "";
+        const clerk_desig = row?.[5] || "";
+        const checked_by = row?.[6] || "";
+
+        return {
+          caseName,
+          petitioner,
+          respondent,
+          decisionDate,
+          judgename,
+          clerk_name,
+          clerk_desig,
+          checked_by,
+        };
+      }
+
+      // 4. WORD GENERATION (Standard)
+      document
+        .getElementById("convertWordButton")
+        .addEventListener("click", async function () {
+          if (jsonData.length < 2) {
+            alert("No valid data to convert!");
+            return;
+          }
+          const rows = jsonData.slice(1);
+          await generateWordDocument(rows);
+        });
+
+      async function generateWordDocument(data) {
+        const {
+          Document,
+          Packer,
+          Paragraph,
+          TextRun,
+          AlignmentType,
+          PageBreak,
+        } = window.docx;
+
+        let sections = data.map((row, index) => {
+          if (!row || row.length < 3)
+            return { properties: {}, children: [new Paragraph("")] };
+          const vals = getRowValues(row);
+
+          return {
+            properties: {},
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "(B+C+D)      ",
+                    bold: false,
+                    size: 52,
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: "फाईल :", bold: true, size: 52 }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: vals.judgename, bold: false, size: 36 }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: "", bold: true, size: 30 })],
+                alignment: AlignmentType.CENTER,
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: vals.caseName, bold: true, size: 40 }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 300 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: "", bold: true, size: 30 })],
+                alignment: AlignmentType.CENTER,
+              }),
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: `${vals.petitioner}     ( अर्जदार / फिर्यादी )`,
+                    bold: false,
+                    size: 30,
+                  }),
+                ],
+                spacing: { after: 200 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: "Vs", bold: true, size: 32 })],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+              }),
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: `${vals.respondent}     ( सा. वाले / आरोपी)`,
+                    bold: false,
+                    size: 30,
+                  }),
+                ],
+                spacing: { after: 500 },
+              }),
+              new Paragraph({
+                spacing: { after: 100 },
+                children: [
+                  new TextRun({
+                    text: "निकाल तारीख : " + vals.decisionDate,
+                    bold: false,
+                    size: 30,
+                  }),
+                ],
+              }),
+              new Paragraph({
+                spacing: { after: 700, line: 360 },
+                alignment: docx.AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: "निशाणी : -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
+                    bold: false,
+                    size: 30,
+                  }),
+                ],
+              }),
+              new Paragraph({
+                spacing: { after: 1000 },
+                children: [
+                  new TextRun({ text: "पान नंबर :", bold: false, size: 30 }),
+                  new TextRun({ text: "    " }),
+                  new TextRun({ text: "     १ ते", bold: false, size: 30 }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: vals.clerk_name, bold: false, size: 30 }),
+                ],
+              }),
+              new Paragraph({
+                spacing: { after: 0 },
+                children: [
+                  new TextRun({
+                    text: vals.clerk_desig,
+                    bold: false,
+                    size: 30,
+                  }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: vals.checked_by, bold: false, size: 30 }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+              ...(index < data.length - 1
+                ? [new Paragraph({ children: [new PageBreak()] })]
+                : []),
+            ],
+          };
+        });
+
+        let doc = new Document({ sections });
+        try {
+          const blob = await Packer.toBlob(doc);
+          saveAs(blob, "Converted_Document.docx");
+        } catch (error) {
+          console.error("Error generating Word document:", error);
+        }
+      }
+
+      // 5. PDF GENERATION (ROBUST LOOP METHOD)
+      document
+        .getElementById("convertPdfButton")
+        .addEventListener("click", async function () {
+          if (jsonData.length < 2) {
+            alert("No valid data to convert!");
+            return;
+          }
+          const rows = jsonData.slice(1);
+          await generatePdfDocument(rows);
+        });
+
+      async function generatePdfDocument(data) {
+        const overlay = document.getElementById("pdfOverlay");
+        const loading = document.getElementById("loadingMsg");
+        const progressBar = document.getElementById("progressBar");
+        const container = document.getElementById("pdfContent");
+
+        // UI Setup
+        overlay.style.display = "block";
+        loading.style.display = "block";
+        progressBar.textContent = "Initializing PDF Engine...";
+
+        try {
+          // Check libraries
+          if (!window.jspdf || !window.html2canvas) {
+            throw new Error("Required libraries (jspdf/html2canvas) missing.");
+          }
+
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF("p", "pt", "a4"); // Portrait, Points, A4
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+
+          // Loop through data ONE PAGE AT A TIME
+          for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            if (!row || row.length < 1) continue;
+
+            // Update Status
+            progressBar.textContent = `Processing page ${i + 1} of ${data.length}...`;
+
+            // Clear previous page content from DOM
+            container.innerHTML = "";
+            const vals = getRowValues(row);
+
+            // --- BUILD DOM FOR SINGLE PAGE ---
+            const page = document.createElement("div");
+            page.className = "pdf-page";
+
+            // Header
+            const rightHeader = document.createElement("div");
+            rightHeader.className = "text-right w-52 mb-1";
+            rightHeader.textContent = "(B+C+D)      ";
+            page.appendChild(rightHeader);
+
+            const title = document.createElement("div");
+            title.className = "text-center font-bold w-52 mb-2";
+            title.textContent = "फाईल :";
+            page.appendChild(title);
+
+            const judge = document.createElement("div");
+            judge.className = "text-center w-36 mb-4";
+            judge.textContent = vals.judgename;
+            page.appendChild(judge);
+
+            // Case
+            const caseEl = document.createElement("div");
+            caseEl.className = "text-center font-bold w-40 mb-4 mt-2";
+            caseEl.textContent = vals.caseName;
+            page.appendChild(caseEl);
+
+            // Parties
+            const party1 = document.createElement("div");
+            party1.className = "text-center w-30 mb-2";
+            party1.textContent = `${vals.petitioner}     ( अर्जदार / फिर्यादी )`;
+            page.appendChild(party1);
+
+            const vs = document.createElement("div");
+            vs.className = "text-center font-bold w-32 mb-2";
+            vs.textContent = "Vs";
+            page.appendChild(vs);
+
+            const party2 = document.createElement("div");
+            party2.className = "text-center w-30 mb-5";
+            party2.textContent = `${vals.respondent}     ( सा. वाले / आरोपी)`;
+            page.appendChild(party2);
+
+            const date = document.createElement("div");
+            date.className = "text-left w-30 mb-1";
+            date.textContent = `निकाल तारीख : ${vals.decisionDate}`;
+            date.style.paddingLeft = "70px";
+            page.appendChild(date);
+
+            // Separator (4 Lines)
+            const signContainer = document.createElement("div");
+            signContainer.className = "separator-line w-30";
+            const line1 = document.createElement("div");
+            line1.textContent =
+              "निशाणी : -------------------------------------------------------------------";
+            signContainer.appendChild(line1);
+            for (let k = 0; k < 3; k++) {
+              const extraLine = document.createElement("div");
+              extraLine.textContent =
+                "------------------------------------------------------------------------------";
+              extraLine.style.marginTop = "8px";
+              signContainer.appendChild(extraLine);
+            }
+            page.appendChild(signContainer);
+
+            // Page No
+            const pageNo = document.createElement("div");
+            pageNo.className = "text-left w-30 mb-4";
+            pageNo.textContent = "पान नंबर :           १ ते";
+            pageNo.style.paddingLeft = "70px";
+            page.appendChild(pageNo);
+
+            // --- SIGNATURE SECTION ---
+            // Row 1: Clerk Name (Alone Left)
+            const clerk = document.createElement("div");
+            clerk.className = "text-left w-30";
+            clerk.style.marginTop = "30pt";
+            clerk.style.paddingLeft = "70px";
+            clerk.textContent = vals.clerk_name;
+            page.appendChild(clerk);
+
+            // Row 2: Designation (Left) + Checked By (Right)
+            const signatureRow = document.createElement("div");
+            signatureRow.style.display = "flex";
+            signatureRow.style.justifyContent = "space-between";
+            signatureRow.style.width = "100%";
+
+            const clerkDesig = document.createElement("div");
+            clerkDesig.className = "text-left w-30";
+            clerkDesig.style.paddingLeft = "70px";
+            clerkDesig.textContent = vals.clerk_desig;
+
+            const checked = document.createElement("div");
+            checked.className = "text-right w-30";
+            checked.textContent = vals.checked_by;
+            checked.style.paddingRight = "120px";
+
+            signatureRow.appendChild(clerkDesig);
+            signatureRow.appendChild(checked);
+            page.appendChild(signatureRow);
+
+            // Attach to DOM
+            container.appendChild(page);
+
+            // --- CAPTURE & ADD TO PDF ---
+            // Wait slightly for DOM render
+            await new Promise((r) => setTimeout(r, 10));
+
+            const canvas = await html2canvas(container, {
+              scale: 2, // High quality
+              useCORS: true,
+            });
+
+            const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+            // Add page to PDF (except for the very first iteration which already has 1 page)
+            if (i > 0) pdf.addPage();
+
+            // Add image filling the A4 page
+            pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+          }
+
+          progressBar.textContent = "Finalizing PDF...";
+          pdf.save("Converted_Document.pdf");
+        } catch (error) {
+          console.error(error);
+          alert("Error: " + error.message);
+        } finally {
+          loading.style.display = "none";
+          overlay.style.display = "none";
+        }
+      }
+
+      // Download Sample
+      document
+        .getElementById("downloadBtn")
+        .addEventListener("click", function () {
+          const fileUrl = "data.xlsx"; // Ensure this file exists or update logic
+          const link = document.createElement("a");
+          link.href = fileUrl;
+          link.download = "data.xlsx";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        });
+    </script>
+  </body>
+</html>
